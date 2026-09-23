@@ -3,18 +3,16 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-import sys
-import os
 import glob
-import zlib
+import os
 import struct
-import binascii
+import sys
 import traceback
-from os.path import curdir
+import zlib
 from pathlib import Path
+from typing import Optional, Callable
 
 import zstandard as zstd
-from typing import Optional, Callable
 
 MAGIC_NO_COMPRESS_START = 0x03
 MAGIC_NO_COMPRESS_START1 = 0x06
@@ -192,92 +190,109 @@ def ParseFile(_file, _outfile):
                 break
 
         if 0 == len(outbuffer):
-            return RET_FAIL, "解压异常"
+            return RET_FAIL, "Decompress fail."
 
         with open(_outfile, 'wb') as fpout:
             size = fpout.write(outbuffer)
-            return size, f'解析成功，文件大小：{size}'
+            return size, f'Success: file size：{size} bytes'
     except FileNotFoundError:
-        return RET_FAIL, f"错误：输入文件不存在 {_file}"
+        return RET_FAIL, f"Error: file {_file} to be proceed does not exist."
     except Exception as e:
-        return RET_FAIL, f"未知异常：{str(e)}"
+        return RET_FAIL, f"Unknown Error: {str(e)}"
 
 
 '''
-@:param src: source files or a directory of sources
+@:param src: source files or a directory of sources. If it is invalid file, all .xlog file under current directory 
+will be depressed.
+@:param dest: destination. If it is invalid, current directory will be the saved destiation.
+@:param callback: callback function
 @:param dest: file path. only support existed dir or empty value.
 @:param callback: callback function
 '''
 
+_depress_callback: Optional[Callable[[str], None]] = lambda message: None
 
-def depress(src: list[str] | None = None, dest='', callback: Optional[Callable[[str], None]] = None):
+
+def decompress(src: list[str] | None = None, dest='', callback: Optional[Callable[[str], None]] = None):
     if src is None:
         src = []
 
-
-
     # 支持场景
-    # 源文件参数4种情况，分别是目录，单个和多个日志文件，空
-    # 目的文件2种情况，分别是目录，和空
+    # 源文件参数4种情况，分别是目录(以存在)，单个和多个日志文件，空
+    # 目的文件2种情况，分别是目录(以存在)，和空
 
     # if callable(callback):
     #     log = callback
     # else:
     #     def log(msg: str) -> None:
     #         pass
-
-    log = callback if callable(callback) else lambda message: None
+    global _depress_callback
+    # _depress_callback = callback if callable(callback) else lambda message: None
+    if callable(callback):
+        _depress_callback = callback
     result = []
-    if not os.path.isdir(dest):
-        log(f'warning: {dest} does not exist')
-        dest = os.getcwd()
+    dest_p = Path(dest)
+    if not dest_p.is_dir():
+        dest_p = Path.cwd()
+        _depress_callback(f'Warning: {dest} does not exist. Use {dest_p.as_posix()} instead.')
 
+    filelist_p: list[Path] = []
     size = len(src)
     if 1 == size:
+        _depress_callback(f'ParseFile: {src[0]} file or dir:')
         # 选时，可能是个文件或目录。
-        path: str = src[0]
-        log(f'ParseFile: path={path}')
-        if os.path.isfile(path):
+        src_p = Path(src[0])
+        if src_p.is_file():
             # 单个文件
-            outfile = os.path.join(dest, os.path.basename(path) + '.log')
-            ret, msg = ParseFile(path, outfile)
-            result.append((ret, msg))
-            log(f'ParseFile: src={path}, dest={outfile}, result={ret}, {msg}')
+            filelist_p.append(src_p)
+            # ret, msg = process_single_file(src_p, dest_p)
+            # result.append((ret, msg))
         else:
             # 非目录转成当前目录
-            if not os.path.isdir(path):
-                path = os.getcwd()
-                log(f'warning: {path} does not exist')
-            filelist = glob.glob(os.path.join(path, '*.log'))
-            for infile in filelist:
-                outfile = os.path.join(dest, os.path.basename(infile) + '.log')
-                ret, msg = ParseFile(infile, outfile)
-                result.append((ret, msg))
-                log(f'ParseFile: src={infile}, dest={outfile}, result={ret}, {msg}')
+            if not src_p.is_dir():
+                _depress_callback(f'Warning: {src[0]} does not exist.')
+                src_p = Path.cwd()
+            filelist_p = [f for f in src_p.glob('*.xlog') if f.is_file()]
+        # for f_p in filelist_p:
+        #     ret, msg = process_single_file(f_p, dest_p)
+        #     result.append((ret, msg))
 
     elif size > 1:
         # 多选时，一定是多个文件，不会有目录出现。
-        log(f'ParseFile size: {size}')
-        for infile in src:
-            if os.path.isfile(infile):
-                outfile = os.path.join(dest, os.path.basename(infile) + '.log')
-                ret, msg = ParseFile(infile, infile)
-                log(f'ParseFile: src={infile}, dest={outfile}, result={ret}, {msg}')
-                result.append((ret, msg))
+        _depress_callback(f'ParseFile {size} files:')
+        for f_str in src:
+            src_p = Path(f_str)
+            if src_p.is_file():
+                filelist_p.append(src_p)
+                # ret, msg = process_single_file(src_p, dest_p)
+                # result.append((ret, msg))
             else:
-                log(f'ParseFile: {infile} isn\'t file')
+                _depress_callback(f'ParseFile: {scr_p.as_posix()} isn\'t file.')
     else:
         # 空
-        log(f'Warning: source file does not exist')
-        path = os.path.abspath(".")
-        filelist = glob.glob(os.path.join(path, '*.log'))
-        log(f'ParseFile Current directory {path}: *.xlog, size={len(filelist)}')
-        for infile in filelist:
-            outfile = os.path.join(dest, os.path.basename(infile) + '.log')
-            ret, msg = ParseFile(infile, outfile)
-            result.append((ret, msg))
-            log(f'ParseFile: src={infile}, dest={outfile}, result={ret}, {msg}')
+        _depress_callback(f'Warning: source file does not exist.')
+        # 解析当前运行环境目录
+        src_p = Path.cwd()
+        filelist_p = [f for f in src_p.glob('*.xlog') if f.is_file()]
+        # _depress_callback(f'ParseFile Current directory {src_p.as_posix()}: *.xlog, size={len(filelist_p)}')
+        # for f_p in filelist_p:
+        #     ret, msg = process_single_file(f_p, dest_p)
+        #     result.append((ret, msg))
+
+    # 最后处理
+    for f_p in filelist_p:
+        ret, msg = process_single_file(f_p, dest_p)
+        result.append((ret, msg))
     return result
+
+
+def process_single_file(src_p: Path, dest_p: Path) -> tuple[int, str]:
+    srcFile = src_p.resolve().as_posix()
+    destFile = (dest_p / (src_p.name + '.log')).as_posix()
+    ret, msg = ParseFile(srcFile, destFile)
+    _depress_callback(f'ParseFile: src={srcFile}, dest={destFile}, result={ret}, {msg}')
+    return ret, msg
+
 
 def parse_dir(_dir: list[str], _out_dir: str, callback: Optional[Callable[[str], None]]):
     for _infile in _dir:
@@ -285,6 +300,7 @@ def parse_dir(_dir: list[str], _out_dir: str, callback: Optional[Callable[[str],
         # _outfile = os.path.join(_out_dir, os.path.basename(_infile) + '.log')
         # _ret, _msg = ParseFile(_infile, _outfile)
         # callback(f'ParseFile: src={_infile}, dest={_outfile}, result={_ret}, {_msg}')
+
 
 def parse_file(_infile: str, _out_dir: str, callback: Optional[Callable[[str], None]]):
     _outfile = os.path.join(_out_dir, os.path.basename(_infile) + '.log')

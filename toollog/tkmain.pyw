@@ -1,12 +1,11 @@
 import os
-import time
-import string
 import tkinter
 import tkinter.colorchooser
 import tkinter.filedialog
 import tkinter.messagebox
 import tkinter.scrolledtext
 import tkinter.simpledialog
+from datetime import datetime
 from unittest.mock import ANY
 
 import depressor.decode_noncrypt as dtool
@@ -28,11 +27,15 @@ srcVar = ANY
 destVar = ANY
 
 def append_log(msg: str):
+    # timestamp = time.time()
+    # t = time.localtime(timestamp)
+    # now_str = time.strftime("%Y-%m-%d %H:%M:%S", t)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # time = timeer()
     # 1. 解锁，允许修改
     logText.config(state="normal")
     # 2. 在末尾插入文本，tk.END 代表文本最后位置
-    logText.insert(tkinter.END, msg + '\n')
+    logText.insert(tkinter.END, now_str + ' ' + msg + '\n')
     # 3. 自动滚动到底部，直接看到最新日志
     logText.see(tkinter.END)
     # 4. 重新锁定为只读
@@ -46,7 +49,7 @@ def pickup_log():
         # 清空内容,0.0是lineNumber.Column的表示方法
         return RET_OK, logFile
     else:
-        msg = 'No file selected!'
+        msg = 'No source xlog picked up'
         print(msg)
         return RET_FAIL, msg
 
@@ -56,16 +59,15 @@ def on_pickup_click():
     global srcVar
     # 调用，拿到元组
     ret_code, ret_msg = pickup_log()
-    mark = ''
     if ret_code == RET_OK:
         # 你可以在这里把路径赋值给变量，例如 srcVar.set(ret_msg)
         srcVar.set(ret_msg)
-        mark = 'SUCCESS'
+        mark = 'SUCCESS, '
     else:
         srcVar.set('')
-        mark = 'FALI'
+        mark = 'Warning, '
 
-    msg = f'pick up: {mark}[{ret_code}, {ret_msg}]'
+    msg = f'Pick up: {mark}[{ret_code}, {ret_msg}].'
     append_log(msg)
 
 
@@ -77,7 +79,7 @@ def choose_dest_dir():
         # 清空内容,0.0是lineNumber.Column的表示方法
         return RET_OK, dest_dir
     else:
-        msg = 'No directory selected!'
+        msg = 'No destination directory'
         print(msg)
         return RET_FAIL, msg
 
@@ -88,54 +90,27 @@ def on_choose_dest_dir():
     ret_code, ret_msg = choose_dest_dir()
     if ret_code == RET_OK:
         destVar.set(ret_msg)
-        mark = 'SUCCESS'
+        mark = 'SUCCESS, '
     else:
         tmp = srcVar.get()
         destVar.set(tmp)
-        mark = f'Warning use [{tmp}]'
-    msg = f'choose dir: {mark}[{ret_code}, {ret_msg}]'
+        mark = 'Warning, '
+    msg = f'Choose dir: {mark}[{ret_code}, {ret_msg}].'
     append_log(msg)
 
-def depress_log():
+def on_decompress():
     src = srcVar.get()
     dest = destVar.get()
-    # 如果内容已改变，先保存
-    if len(src) == 0:
-        append_log('No file selected')
+    # 内容无效，使用
+    if len(src) == 0 or not (os.path.isfile(src) and src.endswith('.xlog')):
+        append_log('No file selected.')
         files = []
     else:
         files = [f for f in src.split(',') if f.strip()]
-    result = dtool.depress(files, dest, callback=append_log)
-    append_log("====处理全部完成====")
-
-def on_depress_log():
-    # 如果内容已改变，先保存
-    depress_log()
+    result = dtool.decompress(files, dest, callback=append_log)
+    append_log(f"{'='*16} !!!Finish!!! {'='*16}")
 
 def UI():
-    # lbSrc = tkinter.Label(app, text='Source:',
-    #                           justify=tkinter.LEFT,
-    #                           anchor = 'e',
-    #                           width=80, height=48)
-    # lbSrc.grid(row=0, column=0)
-    # varSrc = tkinter.StringVar(app, value='')
-    # entrySrc = tkinter.Entry(app,
-    #                           width=80,
-    #                           textvariable=varSrc)
-    # entrySrc.grid(row=0, column=1)
-    # entrySrc.place(x=100, y=5, width=80, height=20)
-    #
-    # destLB = tkinter.Label(app, text='Destination:',
-    #                           justify=tkinter.RIGHT,
-    #                           anchor = 'e',
-    #                           width=80, height=48)
-    # destLB.grid(row=2, column=0)
-    # destVar = tkinter.StringVar(app, value='')
-    # destEntry = tkinter.Entry(app,
-    #                           width=120,
-    #                           textvariable=destVar)
-    # destEntry.grid(row=2, column=1)
-
     global logText, srcVar, destVar
     # ===== 第一个 Frame：登录模块 =====
     conf_frame = tkinter.Frame(app, bg="#e8e8e8", bd=1, relief=tkinter.RIDGE)
@@ -163,8 +138,8 @@ def UI():
 
     opt_frame = tkinter.Frame(app, bg="#e8e8e8", bd=1, relief=tkinter.SOLID)
     opt_frame.pack(pady=2, padx=10, fill=tkinter.X)
-    tkinter.Button(opt_frame, text="Depress", anchor='center', width=10
-                   , command=on_depress_log).grid(row=0, column=0, padx=10, pady=20)
+    tkinter.Button(opt_frame, text="Decompress", anchor='center', width=10
+                   , command=on_decompress).grid(row=0, column=0, padx=10, pady=20)
 
     # buttonOk = tkinter.Button(app, text='open',
     #                           width=40, height=32,
