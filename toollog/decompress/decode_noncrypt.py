@@ -14,6 +14,8 @@ from typing import Optional, Callable
 
 import zstandard as zstd
 
+from uitls.resutils import ResUtils
+
 MAGIC_NO_COMPRESS_START = 0x03
 MAGIC_NO_COMPRESS_START1 = 0x06
 MAGIC_NO_COMPRESS_NO_CRYPT_START = 0x08
@@ -214,6 +216,7 @@ _depress_callback: Optional[Callable[[str], None]] = lambda message: None
 
 
 def decompress(src: list[str] | None = None, dest='', callback: Optional[Callable[[str], None]] = None):
+    print('decompress path is: ======', ResUtils.to_path('decompress/drawable/face_enoch.jpg'))
     if src is None:
         src = []
 

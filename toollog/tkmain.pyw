@@ -8,7 +8,8 @@ import tkinter.simpledialog
 from datetime import datetime
 from unittest.mock import ANY
 
-import depressor.decode_noncrypt as dtool
+import decompress.decode_noncrypt as dtool
+from uitls.resutils import ResUtils
 
 # 创建应用程序窗口
 app = tkinter.Tk()
@@ -155,4 +156,5 @@ def UI():
 
 
 UI()
+print('path is: ======', ResUtils.to_path('decompress/drawable/face_enoch.jpg'))
 app.mainloop()
